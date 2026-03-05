@@ -2,211 +2,125 @@
 % By Parham Khodadi
 clear; clc; close all;
 
-%% Modified Gram-Schmidt (MGS) Function
-% As found on page 58 (Algorithm 8.1) of Textbook
+% Create the Figures directory if it does not exist
+if ~exist('Figures', 'dir')
+    mkdir('Figures');
+end
 
-function [Q,R] = qr_mgs(A)
-    [m,n] = size(A);
-    Q = zeros(m,n,class(A));
-    R = zeros(n,n,class(A));
-    V = A; 
+%% Part A: Eigenvalues and Spectral Radius
+m_vals = [8, 16, 32, 64, 128];
+num_matrices = 100;
+figure('Position', [100, 100, 1000, 600]);
+
+for i = 1:length(m_vals)
+    m = m_vals(i);
     
-    for i = 1:n
-        R(i,i) = norm(V(:,i),2); 
-        Q(:,i) = V(:,i) / R(i,i);
+    % 1. Preallocate a column vector of the exact required size
+    all_eigenvalues = zeros(m * num_matrices, 1); 
+    avg_rho = 0;
+    
+    for k = 1:num_matrices
+        A = randn(m,m)/sqrt(m);
+        eigs_A = eig(A);
         
-        for j = (i+1):n
-            R(i,j) = Q(:,i)' * V(:,j);
-            V(:,j) = V(:,j) - R(i,j) * Q(:,i);
-        end
+        % 2. Calculate the start and end indices for the current batch
+        start_idx = (k - 1) * m + 1;
+        end_idx = k * m;
+        
+        % 3. Insert the eigenvalues into the preallocated array
+        all_eigenvalues(start_idx:end_idx) = eigs_A; 
+        
+        avg_rho = avg_rho + max(abs(eigs_A)); % Compute spectral radius
     end
+    avg_rho = avg_rho / num_matrices;
+    
+    % Plot eigenvalues in the complex plane
+    subplot(2, 3, i);
+    scatter(real(all_eigenvalues), imag(all_eigenvalues), 5, 'filled', 'MarkerFaceAlpha', 0.5);
+    title(sprintf('m = %d, avg \\rho = %.3f', m, avg_rho));
+    axis equal;
+    xlim([-2 2]); ylim([-2 2]);
+    xlabel('Real'); ylabel('Imaginary');
+    
+    % Draw unit circle for reference
+    hold on;
+    theta = linspace(0, 2*pi, 100);
+    plot(cos(theta), sin(theta), 'r--');
+    hold off;
+end
+sgtitle('Part A: Superimposed Eigenvalues of 100 Random Matrices');
+
+% Save Figure for Part A
+exportgraphics(gcf, 'Figures\PartA_Eigenvalues.eps', 'ContentType', 'vector');
+
+
+%% Part B: Norms vs Spectral Radius
+m_vals_large = 2.^(3:9); % Test m values from 8 up to 512
+trials = 50; 
+avg_norms = zeros(size(m_vals_large));
+avg_rhos = zeros(size(m_vals_large));
+
+for i = 1:length(m_vals_large)
+    m = m_vals_large(i);
+    temp_norm = 0;
+    temp_rho = 0;
+    for k = 1:trials
+        A = randn(m,m)/sqrt(m);
+        temp_norm = temp_norm + norm(A, 2);
+        temp_rho = temp_rho + max(abs(eig(A)));
+    end
+    avg_norms(i) = temp_norm / trials;
+    avg_rhos(i) = temp_rho / trials;
 end
 
-%% Classical Gram–Schmidt (CGS) Function
-% Based on page 23 of Notes #6.
-% Copied over from HW3
-function [Q,R] = qr_cgs(A)
-    [m,n] = size(A);
-    Q = zeros(m,n,class(A));
-    R = zeros(n,n,class(A));
-
-    for k = 1:n
-        v = A(:,k);
-
-        for i = 1:k-1
-            R(i,k) = Q(:,i)' * A(:,k);
-            v = v - R(i,k) * Q(:,i);
-        end
-
-        R(k,k) = norm(v,2);
-
-        % Avoid dividing by zero when setting Q(:,k) to v/R(k,k)
-        if R(k,k) == 0
-            Q(:,k) = zeros(m,1,class(A));
-        else
-            Q(:,k) = v / R(k,k);
-        end
-    end
-end
-
-
-
-%% Experiment #1 (basically 9.1(a))
-% Check if graphs match Figure 7.1
-% And check if they match each other
-
-x = (-128:128)'/128;
-A = [x.^0, x.^1, x.^2, x.^3];
-
-% Built in QR function
-figure(1);
-[Q,R] = qr(A,0);
-scale = Q(257,:);
-Q = Q*diag(1./scale);
-plot(x,Q);
-title("Experiment #1 w/ MATLAB QR-func")
-legend("Q0","Q1","Q2","Q3","Location","best")
-grid on
-exportgraphics(gcf, 'Figures\E1_QR.eps', 'ContentType', 'vector');
-
-% My CGS Function
-figure(2);
-[Q,R] = qr_cgs(A);
-scale = Q(257,:);
-Q = Q*diag(1./scale);
-plot(x,Q);
-title("Experiment #1 w/ my CGS-func")
-legend("Q0","Q1","Q2","Q3","Location","best")
-grid on
-exportgraphics(gcf, 'Figures\E1_CGS.eps', 'ContentType', 'vector');
-
-% My MGS Function
-figure(3);
-[Q,R] = qr_mgs(A);
-scale = Q(257,:);
-Q = Q*diag(1./scale);
-plot(x,Q);
-title("Experiment #1 w/ my MGS-func")
-legend("Q0","Q1","Q2","Q3","Location","best")
-grid on
-exportgraphics(gcf, 'Figures\E1_MGS.eps', 'ContentType', 'vector');
-
-
-%% Experiment #2
-[U,X] = qr(randn(80));
-[V,X] = qr(randn(80));
-S = diag(2.^(-1:-1:-80));
-
-A = U*S*V;
-
-[QC,RC] = qr_cgs(A);
-[QM,RM] = qr_mgs(A);
-
-% Plot diagonal elements r_jj vs j on a logarithmic scale
-figure(4);
-j = 1:80;
-semilogy(j, abs(diag(RC)), 'o', 'DisplayName', 'CGS (r_{jj})');
+figure;
+plot(m_vals_large, avg_norms, '-o', 'LineWidth', 1.5, 'DisplayName', '2-Norm ||A||_2');
 hold on;
-semilogy(j, abs(diag(RM)), 'x', 'DisplayName', 'MGS (r_{jj})');
-semilogy(j, 2.^(-j), '--k', 'DisplayName', '2^{-j}');
-yline(sqrt(eps), '--r', 'DisplayName', '\surd\epsilon_{machine}');
-yline(eps, '--b', 'DisplayName', '\epsilon_{machine}');
-hold off;
-xlabel('j');
-ylabel('|r_{jj}|');
-title('Experiment #2 Diagonal Elements of R on Logarithmic Scale');
-legend('Location','best');
+plot(m_vals_large, avg_rhos, '-s', 'LineWidth', 1.5, 'DisplayName', 'Spectral Radius \rho(A)');
+yline(2, 'b--', 'Expected ||A||_2 limit \approx 2', 'HandleVisibility', 'off');
+yline(1, 'r--', 'Expected \rho(A) limit \approx 1', 'HandleVisibility', 'off');
+xlabel('Matrix Size m');
+ylabel('Value');
+title('Part B: Behavior of 2-Norm and Spectral Radius as m \rightarrow \infty');
+legend('Location', 'best');
 grid on;
-exportgraphics(gcf, 'Figures\E2.eps', 'ContentType', 'vector');
+
+% Save Figure for Part B
+exportgraphics(gcf, 'Figures\PartB_Norm_Rho.eps', 'ContentType', 'vector');
 
 
-%% Exercise 9.1(b)
-x = (-128:128)'/128;
-A = [x.^0, x.^1, x.^2, x.^3];
+%% Part C: Condition Numbers and Smallest Singular Value (\sigma_min)
+m_vals_C = [8, 16, 32, 64];
+num_samples = 2000; % Large sample size for distinct tail probabilities
+k_vals = 1:10;
+thresholds = 2.^(-k_vals); 
 
-% QR to get approximate Legendre polynomials
-[Q, R] = qr_mgs(A);
-scale = Q(257,:);         % values at x=1
-Q = Q * diag(1./scale);   % normalize so P_k(1) = 1
-
-% Exact Legendre polynomials (Eq. 7.11)
-P_exact = zeros(257, 4);
-P_exact(:,1) = ones(257,1);            % P0
-P_exact(:,2) = x;                      % P1
-P_exact(:,3) = (3*x.^2 - 1) / 2;       % P2
-P_exact(:,4) = (5*x.^3 - 3*x) / 2;     % P3
-
-% Compute and plot the errors
 figure;
-for k = 1:4
-    subplot(2,2,k);
-    err = Q(:,k) - P_exact(:,k);
-    plot(x, err, '.-');
-    title(sprintf('Error in P_%d, max|err| = %.2e', k-1, max(abs(err))));
-    xlabel('x'); ylabel('error');
-    grid on;
-end
-sgtitle('Exercise 9.1(b): Errors on 257-point grid (\Deltax = 2^{-7})');
-exportgraphics(gcf, 'Figures\9_1_b.eps', 'ContentType', 'vector');
-
-%% Exercise 9.1(c)
-figure;
-v_values = 2:10;
-
-for k = 0:3
-    subplot(2,2,k+1);
-    max_errors = zeros(size(v_values));
+hold on;
+for i = 1:length(m_vals_C)
+    m = m_vals_C(i);
+    sigma_min_vals = zeros(num_samples, 1);
     
-    for idx = 1:length(v_values)
-        v = v_values(idx);
-        m = 2^v;                          % number of subintervals
-        x_v = (-m:m)' / m;                % (2m+1)-point grid on [-1,1]
-        A_v = [x_v.^0, x_v.^1, x_v.^2, x_v.^3];
-        
-        [Q_v, ~] = qr_mgs(A_v);
-        sc = Q_v(end,:);                   % value at x=1
-        Q_v = Q_v * diag(1./sc);
-        
-        % Exact Legendre polynomial P_k
-        switch k
-            case 0, P_ex = ones(size(x_v));
-            case 1, P_ex = x_v;
-            case 2, P_ex = (3*x_v.^2 - 1)/2;
-            case 3, P_ex = (5*x_v.^3 - 3*x_v)/2;
-        end
-        
-        max_errors(idx) = max(abs(Q_v(:,k+1) - P_ex));
+    for j = 1:num_samples
+        A = randn(m,m)/sqrt(m);
+        s = svd(A); % Returns singular values in descending order
+        sigma_min_vals(j) = s(end); % Extract smallest singular value
     end
     
-    % Log-log plot: max error vs Delta_x
-    semilogy(v_values, max_errors, 'o-', 'LineWidth', 1.5);
-    xlabel('\nu  (\Deltax = 2^{-\nu})');
-    ylabel('max |error|');
-    title(sprintf('Convergence for P_%d', k));
-    grid on;
+    proportions = zeros(length(thresholds), 1);
+    for t = 1:length(thresholds)
+        proportions(t) = sum(sigma_min_vals < thresholds(t)) / num_samples;
+    end
+    
+    plot(k_vals, proportions, '-o', 'LineWidth', 1.5, 'DisplayName', sprintf('m = %d', m));
 end
-sgtitle('Exercise 9.1(c): Convergence as \Deltax \rightarrow 0');
-exportgraphics(gcf, 'Figures\9_1_c.eps', 'ContentType', 'vector');
 
-%% Exercise 9.2
-m = 20;
-A = eye(m) + 2*diag(ones(m-1,1), 1);  % Toeplitz matrix
+set(gca, 'YScale', 'log'); % Log scale to see the tail behavior clearly
+xlabel('k (where threshold is 2^{-k})');
+ylabel('Proportion of matrices with \sigma_{min} < 2^{-k}');
+title('Part C: Tail Distribution of Smallest Singular Value \sigma_{min}');
+legend('Location', 'southwest');
+grid on;
 
-% (a) Eigenvalues, determinant, rank
-eigenvalues = eig(A);
-fprintf('Eigenvalues are all 1: %d\n', all(abs(eigenvalues - 1) < 1e-12));
-fprintf('Determinant: %g\n', det(A));
-fprintf('Rank: %d\n', rank(A));
-
-% (b) Inverse
-A_inv = inv(A);
-disp('Top-right corner of A^{-1}:');
-disp(A_inv(1:min(5,m), max(1,m-4):m));
-
-% (c) Singular values
-s = svd(A);
-sigma_m = s(end);
-bound = sqrt(3 / (4^m - 1));
-fprintf('sigma_m = %e\n', sigma_m);
-fprintf('Upper bound = %e\n', bound);
-fprintf('Bound holds: %d\n', sigma_m <= bound + 1e-12);
+% Save Figure for Part C
+exportgraphics(gcf, 'Figures\PartC_SigmaMin.eps', 'ContentType', 'vector');

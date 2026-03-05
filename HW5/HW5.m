@@ -45,6 +45,9 @@ for i = 1:length(m_vals)
 end
 sgtitle('Part A: Superimposed Eigenvalues of 100 Random Matrices');
 
+% Save Figure for Part A
+exportgraphics(gcf, 'Figures\PartA_Eigenvalues.eps', 'ContentType', 'vector');
+
 
 %% Part B: Norms vs Spectral Radius
 m_vals_large = 2.^(3:9); % Test m values from 8 up to 512
@@ -76,6 +79,9 @@ ylabel('Value');
 title('Part B: Behavior of 2-Norm and Spectral Radius as m \rightarrow \infty');
 legend('Location', 'best');
 grid on;
+
+% Save Figure for Part B
+exportgraphics(gcf, 'Figures\PartB_Norm_Rho.eps', 'ContentType', 'vector');
 
 
 %% Part C: Condition Numbers and Smallest Singular Value (\sigma_min)
@@ -110,3 +116,6 @@ ylabel('Proportion of matrices with \sigma_{min} < 2^{-k}');
 title('Part C: Tail Distribution of Smallest Singular Value \sigma_{min}');
 legend('Location', 'southwest');
 grid on;
+
+% Save Figure for Part C
+exportgraphics(gcf, 'Figures\PartC_SigmaMin.eps', 'ContentType', 'vector');
